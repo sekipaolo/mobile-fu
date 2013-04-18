@@ -93,7 +93,7 @@ module ActionController
       # Forces the request format to be :mobile
       def force_mobile_format
         unless request.xhr?
-          request.format = :mobile
+          request.format = [:mobile, :html]
           session[:mobile_view] = true if session[:mobile_view].nil?
         end
       end
@@ -101,7 +101,7 @@ module ActionController
       # Forces the request format to be :tablet
       def force_tablet_format
         unless request.xhr?
-          request.format = :tablet
+          request.format = [:tablet, :html]
           session[:tablet_view] = true if session[:tablet_view].nil?
         end
       end
@@ -165,6 +165,7 @@ module ActionController
         self.class.instance_variable_get("@mobile_exempt_actions").try(:include?, params[:action].to_sym)
       end
     end
+ 
   end
 end
 
@@ -173,3 +174,29 @@ if Rails::VERSION::MAJOR < 3
   ActionView::Base.send :include, MobileFu::Helper
   ActionView::Base.send :alias_method_chain, :stylesheet_link_tag, :mobilization
 end
+
+module Resolvers
+  # this resolver graciously shared by jdelStrother at
+  # https://github.com/rails/rails/issues/3855#issuecomment-5028260
+  class MobileFallbackResolver < ::ActionView::FileSystemResolver
+    def find_templates(name, prefix, partial, details)
+      puts "setting formats"
+      if details[:formats] == [:mobile]
+        # Add a fallback for html, for the case where, eg, 'index.html.haml' exists, but not 'index.mobile.haml'
+        details = details.dup
+        details[:formats] = [:mobile, :html]
+      end
+      super
+    end
+  end
+end
+
+ActiveSupport.on_load(:action_controller) do
+  #tmp_view_paths = view_paths.dup # avoid endless loop as append_view_path modifies view_paths
+  #tmp_view_paths.each do |path|
+  #  append_view_path(Resolvers::MobileFallbackResolver.new(path.to_s))
+  #end
+  append_view_path Resolvers::MobileFallbackResolver.new('app/views')
+end
+
+
