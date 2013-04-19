@@ -93,7 +93,7 @@ module ActionController
       # Forces the request format to be :mobile
       def force_mobile_format
         unless request.xhr?
-          request.format = [:mobile, :html]
+          request.format = :mobile
           session[:mobile_view] = true if session[:mobile_view].nil?
         end
       end
@@ -101,7 +101,7 @@ module ActionController
       # Forces the request format to be :tablet
       def force_tablet_format
         unless request.xhr?
-          request.format = [:tablet, :html]
+          request.format = :tablet
           session[:tablet_view] = true if session[:tablet_view].nil?
         end
       end
@@ -181,10 +181,12 @@ module Resolvers
   class MobileFallbackResolver < ::ActionView::FileSystemResolver
     def find_templates(name, prefix, partial, details)
       puts "setting formats"
-      if details[:formats] == [:mobile]
-        # Add a fallback for html, for the case where, eg, 'index.html.haml' exists, but not 'index.mobile.haml'
+      if details[:formats] == :mobile
         details = details.dup
         details[:formats] = [:mobile, :html]
+      elsif details[:formats] == :tablet
+        details = details.dup
+        details[:formats] = [:tablet, :html]
       end
       super
     end
