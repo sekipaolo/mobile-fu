@@ -162,6 +162,7 @@ module ActionController
       # See #has_no_mobile_fu_for
 
       def mobile_exempt?
+        return false unless params[:action].present?
         self.class.instance_variable_get("@mobile_exempt_actions").try(:include?, params[:action].to_sym)
       end
     end
