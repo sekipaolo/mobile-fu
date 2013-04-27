@@ -92,18 +92,18 @@ module ActionController
 
       # Forces the request format to be :mobile
       def force_mobile_format
-        unless request.xhr?
+        #unless request.xhr?
           request.format = :mobile
           session[:mobile_view] = true if session[:mobile_view].nil?
-        end
+        #end
       end
 
       # Forces the request format to be :tablet
       def force_tablet_format
-        unless request.xhr?
+        #unless request.xhr?
           request.format = :tablet
           session[:tablet_view] = true if session[:tablet_view].nil?
-        end
+        #end
       end
 
       # Determines the request format based on whether the device is mobile or if
@@ -111,13 +111,17 @@ module ActionController
       # 'Tablet' view.
 
       def set_mobile_format
-        if request.format.html? && !mobile_exempt? && is_mobile_device? && !request.xhr?
+        if request.format.html? && !mobile_exempt? && is_mobile_device?# && !request.xhr?
           request.format = :mobile unless session[:mobile_view] == false
           session[:mobile_view] = true if session[:mobile_view].nil?
-        elsif request.format.html? && !mobile_exempt? && is_tablet_device? && !request.xhr?
-          request.format = :tablet unless session[:tablet_view] == false
-          session[:tablet_view] = true if session[:tablet_view].nil?
+        elsif request.format.html? && !mobile_exempt? && is_tablet_device?# && !request.xhr?
+          request.format = :mobile unless session[:mobile_view] == false
+          session[:mobile_view] = true if session[:mobile_view].nil?
         end
+#        elsif request.format.html? && !mobile_exempt? && is_tablet_device?# && !request.xhr?
+#          request.format = :tablet unless session[:tablet_view] == false
+#          session[:tablet_view] = true if session[:tablet_view].nil?
+#        end
       end
 
       # Returns either true or false depending on whether or not the format of the
@@ -176,30 +180,38 @@ if Rails::VERSION::MAJOR < 3
   ActionView::Base.send :alias_method_chain, :stylesheet_link_tag, :mobilization
 end
 
-module Resolvers
-  # this resolver graciously shared by jdelStrother at
-  # https://github.com/rails/rails/issues/3855#issuecomment-5028260
-  class MobileFallbackResolver < ::ActionView::FileSystemResolver
-    def find_templates(name, prefix, partial, details)
-      puts "setting formats"
-      if details[:formats] == :mobile
-        details = details.dup
-        details[:formats] = [:mobile, :html]
-      elsif details[:formats] == :tablet
-        details = details.dup
-        details[:formats] = [:tablet, :html]
+module ActionView
+  class PathSet
+
+    def find_with_default_template(path, prefix = nil, partial = false, details = {}, key = nil, other=nil)
+      if prefix == "layouts"
+        # Layouts have their own way of managing fallback, better leave them alone
+        find_without_default_template(path, prefix, partial, details, key)
+      else
+        begin
+          find_without_default_template(path, prefix, partial, details, key)
+        rescue MissingTemplate => e
+          raise e if details[:formats] == [:html]
+          html_details = details.dup.merge(:formats => [:html])
+          find_without_default_template(path, prefix, partial, html_details, key)
+        end
       end
-      super
     end
+    alias_method_chain :find, :default_template
+
+  end
+  
+  class Resolver
+    
+    def cached(key, prefix, name, partial)
+      return yield unless key && caching?
+      cache_content = yield
+      if cache_content.empty?
+        []
+      else
+        @cached[key][prefix][name][partial] ||= cache_content
+      end
+    end
+    
   end
 end
-
-ActiveSupport.on_load(:action_controller) do
-  #tmp_view_paths = view_paths.dup # avoid endless loop as append_view_path modifies view_paths
-  #tmp_view_paths.each do |path|
-  #  append_view_path(Resolvers::MobileFallbackResolver.new(path.to_s))
-  #end
-  append_view_path Resolvers::MobileFallbackResolver.new('app/views')
-end
-
-
